@@ -448,7 +448,11 @@ An operator dashboard for one nest, built to show how the system behaves.
 | **Shipment feed** | One card per package with a mass bar (e.g. 1700 / 1800 g) that makes the limit visible |
 | **Controls** | Load the sample catalog, submit an order, submit a restock, and a **simulate** button that sends synthetic hospital orders and random restocks |
 
-Data comes from the GET endpoints through a small polling hook (`src/usePolling.ts`). TypeScript types are hand-written in `src/api.ts` to mirror the Pydantic schemas; there are only a handful. The Vite dev server proxies `/api` to the backend, so there is one origin and no CORS configuration.
+The inventory panel shows stock next to what waiting orders still need, which makes invariant I4 visible: no product is ever both in stock and waited for. Shipment bars are colored by product family (red cells, plasma, platelets, cryo) and marked every 100 g.
+
+The simulator sends a random order (65%) or restock (35%) every 1.5 s. The sample catalog and sample restock are imported straight from `backend/samples/`, so there is one copy of the spec's data; `vite.config.ts` allows the dev server to read that folder.
+
+Data comes from the GET endpoints through a small polling hook (`src/usePolling.ts`). One poll fetches inventory, orders, and shipments together, so the panels always agree with each other. TypeScript types are hand-written in `src/api.ts` to mirror the Pydantic schemas; there are only a handful. The Vite dev server proxies `/api` to the backend, so there is one origin and no CORS configuration.
 
 ---
 
@@ -516,7 +520,7 @@ Each step ends with passing tests and its own commit.
 - [x] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
 - [x] **3. Property tests:** invariants I1 to I5 under random operation sequences
 - [x] **4. API:** request handling, response models, error mapping, API tests
-- [ ] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
+- [x] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
 - [ ] **6. Polish:** README run instructions verified end to end, screenshots
 
 ---
