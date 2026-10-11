@@ -33,7 +33,14 @@ class FulfillmentService:
     def __init__(self, packer: Packer, sink: ShipmentSink) -> None:
         self.packer = packer
         self.sink = sink
+        self.reset()
 
+    def reset(self) -> None:
+        """Forget everything, back to before init_catalog. Demo only (DESIGN.md, API contract).
+
+        __init__ calls this too, so every piece of state is set up in one place
+        and a reset can't miss a field.
+        """
         self.catalog: dict[ProductId, Product] | None = None  # None until init_catalog
         self.stock: dict[ProductId, int] = {}
         # Insertion ordered: iterating visits orders oldest first (FIFO).

@@ -209,3 +209,15 @@ def test_shipments_are_listed_newest_first(ready):
     shipments = ready.get("/api/shipments").json()
     assert [(s["shipment_id"], s["order_id"]) for s in shipments] == [(2, 2), (1, 1)]
     assert shipments[0]["mass_g"] == 700
+
+
+def test_reset_clears_everything(ready, sample_catalog, sample_restock, sample_order):
+    ready.post("/api/restocks", json=sample_restock)
+    ready.post("/api/orders", json=sample_order)
+
+    assert ready.post("/api/reset").status_code == 204
+
+    assert ready.get("/api/catalog").json() == []
+    assert ready.get("/api/orders").json() == []
+    assert ready.get("/api/shipments").json() == []
+    assert ready.put("/api/catalog", json=sample_catalog).status_code == 201

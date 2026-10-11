@@ -50,6 +50,17 @@ def init_catalog(products: list[ProductIn], request: Request) -> list[ProductOut
         return [ProductOut.from_domain(p) for p in service.catalog.values()]
 
 
+@router.post("/reset", status_code=status.HTTP_204_NO_CONTENT)
+def reset(request: Request) -> None:
+    """Demo only: clear the catalog, stock, orders, and shipments.
+
+    Not part of the spec. A real nest would never expose this; it exists so the
+    dashboard can start a fresh demo without restarting the server.
+    """
+    with locked_service(request) as service:
+        service.reset()
+
+
 @router.get("/catalog")
 def get_catalog(request: Request) -> list[ProductOut]:
     """The catalog, or [] before init_catalog."""

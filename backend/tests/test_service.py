@@ -242,3 +242,32 @@ def test_completed_orders_are_kept_for_lookup(service):
     assert service.orders[1].is_complete()
     with pytest.raises(DuplicateOrderError):
         service.process_order(1, lines((FFP_A, 2)))
+
+
+# ---- reset (demo only) -------------------------------------------------------------
+
+
+def test_reset_returns_to_before_init_catalog(service):
+    service.process_restock(lines((FFP_A, 5)))
+    service.process_order(1, lines((FFP_A, 2), (RBC_A, 1)))
+
+    service.reset()
+
+    assert service.catalog is None
+    assert service.stock == {}
+    assert service.orders == service.pending == {}
+    assert service.shipments == []
+    with pytest.raises(CatalogNotInitializedError):
+        service.process_restock(lines((FFP_A, 1)))
+
+
+def test_after_reset_ids_start_over(service):
+    service.process_restock(lines((FFP_A, 1)))
+    service.process_order(1, lines((FFP_A, 1)))
+    service.reset()
+    service.init_catalog([Product(FFP_A, "FFP A+", 300)])
+
+    service.process_restock(lines((FFP_A, 1)))
+    made = service.process_order(1, lines((FFP_A, 1)))  # same id is fine again
+    assert [s.shipment_id for s in made] == [1]
+    assert service.orders[1].seq == 0

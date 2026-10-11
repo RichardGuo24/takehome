@@ -387,10 +387,13 @@ All routes are under `/api`. Interactive docs: `http://localhost:8000/docs`.
 | GET | `/orders/{id}` | | | 200 | 404 `OrderNotFoundError` |
 | GET | `/shipments` | | | 200: newest first | |
 | GET | `/health` | | | 200 | |
+| POST | `/reset` | (demo only) | | 204: back to before `init_catalog` | |
 
 **Preserving the spec's contracts.** Each write endpoint accepts exactly the spec's JSON shape; catalog and restock bodies are arrays, the order body is an object. Every package printed by `ConsoleSink` is exactly the spec's `ship_package` shape. The extra `shipment_id` and `mass_g` fields appear only in `GET /shipments`.
 
 **Idempotency.** Re-sending `POST /orders` with the same `order_id` and the same requested quantities returns 201 with the order's current status and an empty `shipments` list. It is 201 rather than 200 so a retried request sees the same status code as the original. The same `order_id` with different quantities is a 409, because it's either a bug or a conflicting edit.
+
+**Reset is demo only.** `POST /reset` is not in the spec. It clears the catalog, stock, orders, and shipments so the dashboard can start a fresh demo without restarting the server. `FulfillmentService.__init__` calls `reset()`, so all state is set up in one place and a reset can't miss a field. A real nest would not expose it; with deployment we'd remove it or put it behind an admin role.
 
 **Error body.** Every error, domain or validation, has the shape `{"error": <name>, "detail": ...}`. For validation errors `detail` is Pydantic's list naming the exact field.
 
@@ -553,5 +556,5 @@ Things a reviewer might push on, written down so the answer is ready. When one i
 | Q2 | Does "same payload" compare summed quantities (so `[{0:1},{0:1}]` equals `[{0:2}]`)? | Resolved in step 2: yes, both mean the same order |
 | Q3 | Is an empty restock `[]` or empty catalog `[]` accepted? | Resolved in step 2: empty restock is a no-op; empty catalog is `InvalidCatalogError` (422) |
 | Q4 | Upper bound on quantities? 10^9 units of 40 g would create about 22 million packages | Open |
-| Q5 | A reset endpoint for demos? `init_catalog` works once per server start | Open |
+| Q5 | A reset endpoint for demos? `init_catalog` works once per server start | Resolved: yes, `POST /reset`, documented as demo only (§10) |
 | Q6 | Status code for an idempotent replay of `POST /orders`: 200 or 201? | Resolved in step 4: 201, the same as the original request |
