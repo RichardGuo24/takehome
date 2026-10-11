@@ -65,4 +65,6 @@ export const api = {
   shipments: () => request<Shipment[]>('GET', '/shipments'),
   placeOrder: (order: OrderIn) => request<OrderResult>('POST', '/orders', order),
   restock: (lines: Line[]) => request<RestockResult>('POST', '/restocks', lines),
+  // Demo only: back to before init_catalog (backend/app/api/routes.py).
+  reset: () => request<null>('POST', '/reset'),
 }

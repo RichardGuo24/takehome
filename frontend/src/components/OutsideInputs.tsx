@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react'
+import sampleCatalog from '../../../backend/samples/catalog.json'
 import sampleRestock from '../../../backend/samples/restock.json'
 import { api, errorMessage, type InventoryItem, type Line, type Shipment } from '../api'
 
@@ -88,19 +89,30 @@ export function OutsideInputs({ inventory, nextOrderId, onChange }: Props) {
   })
   const simulatedId = useRef(0)
 
+  function resetDemo() {
+    setSimulating(false)
+    simulatedId.current = 0
+    void run(async () => {
+      await api.reset()
+      await api.initCatalog(sampleCatalog)
+      setOrderId('')
+      return 'Demo reset: sample catalog loaded, every product at 0.'
+    })
+  }
+
   useEffect(() => {
     if (!simulating) return
     const id = setInterval(() => {
       const { inventory, nextOrderId, onChange } = latest.current
       const tick =
-        Math.random() < 0.65
+        Math.random() < 0.6
           ? () => {
               // Synthetic hospital order: 1 to 3 products, a few units each.
               simulatedId.current = Math.max(simulatedId.current, nextOrderId)
               const order_id = simulatedId.current++
               return api.placeOrder({ order_id, requested: randomLines(inventory, randomInt(1, 3), 4) })
             }
-          : () => api.restock(randomLines(inventory, randomInt(1, 4), 6))
+          : () => api.restock(randomLines(inventory, randomInt(2, 5), 10))
       tick()
         .catch((err) => setFeedback({ kind: 'error', text: errorMessage(err) }))
         .finally(onChange)
@@ -119,11 +131,9 @@ export function OutsideInputs({ inventory, nextOrderId, onChange }: Props) {
   }
 
   return (
-    <aside className="outside" aria-labelledby="outside-title">
+    <div className="outside" aria-labelledby="outside-title">
       <h2 id="outside-title">Outside the nest</h2>
-      <p className="muted">
-        Stand-ins for the hospital and supplier systems that call this nest's API.
-      </p>
+      <p className="hint">Stand-ins for the hospital and supplier systems that call the API.</p>
 
       <p className={`feedback ${feedback?.kind ?? ''}`} role="status" aria-live="polite">
         {feedback?.text}
@@ -209,11 +219,14 @@ export function OutsideInputs({ inventory, nextOrderId, onChange }: Props) {
 
       <div className="actor">
         <h3>Demo</h3>
-        <p className="muted">
-          Plays both roles: a random hospital order or supplier restock every{' '}
+        <p className="hint">
+          Plays both roles: a random hospital order (60%) or supplier restock (40%) every{' '}
           {SIMULATE_EVERY_MS / 1000} s.
         </p>
         <div className="actions">
+          <button type="button" className="quiet" onClick={resetDemo}>
+            Reset demo
+          </button>
           <button
             type="button"
             className={simulating ? 'stop' : undefined}
@@ -224,6 +237,6 @@ export function OutsideInputs({ inventory, nextOrderId, onChange }: Props) {
           </button>
         </div>
       </div>
-    </aside>
+    </div>
   )
 }

@@ -7,7 +7,7 @@ An inventory management and order fulfillment system for a single Zipline distri
 
 The full problem statement, design, and tradeoffs are in **[DESIGN.md](DESIGN.md)**.
 
-![The dashboard: the operator's inventory, packages drawn against the 1800 g limit, and orders waiting for stock, with stand-ins for the hospital and supplier on the right](docs/dashboard.jpg)
+![The dashboard: stand-ins for the hospital and supplier in the sidebar; the operator's headline numbers, inventory, packages drawn against the 1800 g limit, and orders waiting for stock](docs/dashboard.jpg)
 
 ## Quick start
 
@@ -30,13 +30,14 @@ Open http://localhost:5173 for the dashboard, or http://localhost:8000/docs for 
 
 **In the dashboard** (http://localhost:5173):
 
-The left side is what the nest operator sees: inventory, packages shipped, and orders waiting for stock. It only displays state. The **Outside the nest** column on the right stands in for the systems that call the API: a hospital sending orders, a supplier delivering restocks, and a demo that plays both.
+The main area is what the nest operator sees: headline numbers, inventory, packages shipped, and orders waiting for stock. It only displays state. The sidebar, **Outside the nest**, stands in for the systems that call the API: a hospital sending orders, a supplier delivering restocks, and a demo that plays both.
 
 1. Click **Load sample catalog**. All 13 products start at 0.
 2. Under **Hospital**, click **Send order**. With no stock it waits under **Waiting for stock**.
 3. Under **Supplier**, click **Deliver sample restock**. The waiting order ships at once, split into packages of at most 1800 g.
 4. Under **Demo**, click **Start simulation** to send random orders and restocks every 1.5 s.
 5. To see duplicate-order handling, type an existing order id under **Hospital** with different products and send it.
+6. **Reset demo** clears everything and reloads the sample catalog (demo only, via `POST /api/reset`).
 
 Every package is also printed to the backend console in the spec's `ship_package` shape.
 
@@ -55,7 +56,7 @@ The order waits (no stock yet). The restock ships it as two packages, and the ba
 {"order_id": 123, "shipped": [{"product_id": 10, "quantity": 3}]}
 ```
 
-State is in memory, so restarting the backend starts over with no catalog.
+State is in memory, so restarting the backend starts over with no catalog. `curl -X POST localhost:8000/api/reset` does the same without a restart.
 
 ## How the spec maps to the API
 

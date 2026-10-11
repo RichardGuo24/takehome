@@ -16,38 +16,40 @@ export function InventoryPanel({ inventory, orders }: Props) {
   return (
     <section className="panel" aria-labelledby="inventory-title">
       <h2 id="inventory-title">Inventory</h2>
-      <table className="inventory">
-        <thead>
-          <tr>
-            <th scope="col">Product</th>
-            <th scope="col" className="num">
-              Mass
-            </th>
-            <th scope="col" className="num">
-              In stock
-            </th>
-            <th scope="col" className="num">
-              Waiting
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {inventory.map((item) => {
-            const waiting = waitingFor.get(item.product_id) ?? 0
-            return (
-              <tr key={item.product_id} className={item.quantity === 0 ? 'empty' : undefined}>
-                <td>
-                  <span className={`swatch ${family(item)}`} aria-hidden="true" />
-                  {item.product_name}
-                </td>
-                <td className="num muted">{item.mass_g} g</td>
-                <td className="num stock">{item.quantity}</td>
-                <td className={waiting > 0 ? 'num short' : 'num muted'}>{waiting || ''}</td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+      <div className="panel-body">
+        <table className="inventory">
+          <thead>
+            <tr>
+              <th scope="col">Product</th>
+              <th scope="col" className="num">
+                Mass
+              </th>
+              <th scope="col" className="num">
+                In stock
+              </th>
+              <th scope="col" className="num">
+                Waiting
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            {inventory.map((item) => {
+              const waiting = waitingFor.get(item.product_id) ?? 0
+              return (
+                <tr key={item.product_id} className={item.quantity === 0 ? 'empty' : undefined}>
+                  <td>
+                    <span className={`swatch ${family(item)}`} aria-hidden="true" />
+                    {item.product_name}
+                  </td>
+                  <td className="num muted">{item.mass_g} g</td>
+                  <td className="num stock">{item.quantity}</td>
+                  <td className={waiting > 0 ? 'num short' : 'num muted'}>{waiting || ''}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
     </section>
   )
 }

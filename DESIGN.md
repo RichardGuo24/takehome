@@ -448,18 +448,19 @@ The screen is split by **who acts**, because in the spec the nest doesn't create
 
 | Area | Who | Shows or does |
 | --- | --- | --- |
-| **Inventory** | Operator (read only) | Each product's stock and mass, and units still waited for; zero stock highlighted |
+| **Sidebar: Hospital** | Stand-in for a hospital system | Send an order; the order id is editable (prefilled with the next free one), so duplicate handling can be tried |
+| **Sidebar: Supplier** | Stand-in for a supplier system | Deliver a restock, or the spec's sample restock |
+| **Sidebar: Demo** | Plays both roles | A random order (60%) or restock (40%) every 1.5 s; **Reset demo** calls `POST /reset` and reloads the sample catalog |
+| **Headline numbers** | Operator (read only) | Units in stock, orders waiting, packages shipped, average package fill |
+| **Inventory** | Operator (read only) | Each product's stock and mass, and units still waited for; zero stock muted |
+| **Packages shipped** | Operator (read only) | One card per package with a bar against the 1800 g limit, gridlines every 100 g |
 | **Waiting for stock** | Operator (read only) | Orders oldest first; per line: shipped of requested |
-| **Packages shipped** | Operator (read only) | One card per package with a mass bar (e.g. 1700 / 1800 g) that makes the limit visible |
-| **Outside the nest: Hospital** | Stand-in for a hospital system | Send an order; the order id is editable (prefilled with the next free one), so duplicate handling can be tried |
-| **Outside the nest: Supplier** | Stand-in for a supplier system | Deliver a restock, or the spec's sample restock |
-| **Outside the nest: Demo** | Plays both roles | Sends a random order or restock every 1.5 s |
 
-The outside column is dashed and tinted so it doesn't read as the operator's own controls. Loading the sample catalog is a one-time setup screen shown before `init_catalog` has run.
+The app is exactly one screen tall on desktop; each panel scrolls inside itself, so a long shipment feed never stretches the page. Below 1100 px everything stacks and the page scrolls instead.
 
-The inventory panel shows stock next to what waiting orders still need, which makes invariant I4 visible: no product is ever both in stock and waited for. Shipment bars are colored by product family (red cells, plasma, platelets, cryo) and marked every 100 g.
+**Color.** Product families are a categorical palette: red cells red, plasma orange, platelets teal, cryo indigo. It was checked with a colorblind-safety validator, light and dark separately (dark uses its own darker steps). Two pairs sit in the "needs secondary encoding" band, which the bars have: a 2 px gap between segments and a text legend under every bar. Status chips use the accent and a warm tone, never a product color.
 
-The simulator sends a random order (65%) or restock (35%) every 1.5 s. The sample catalog and sample restock are imported straight from `backend/samples/`, so there is one copy of the spec's data; `vite.config.ts` allows the dev server to read that folder.
+The inventory panel shows stock next to what waiting orders still need, which makes invariant I4 visible: no product is ever both in stock and waited for. The sample catalog and sample restock are imported straight from `backend/samples/`, so there is one copy of the spec's data; `vite.config.ts` allows the dev server to read that folder.
 
 Data comes from the GET endpoints through a small polling hook (`src/usePolling.ts`). One poll fetches inventory, orders, and shipments together, so the panels always agree with each other. TypeScript types are hand-written in `src/api.ts` to mirror the Pydantic schemas; there are only a handful. The Vite dev server proxies `/api` to the backend, so there is one origin and no CORS configuration.
 
