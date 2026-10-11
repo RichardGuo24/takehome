@@ -509,7 +509,7 @@ Each step ends with passing tests and its own commit.
 - [x] **0. Scaffold:** repo layout, tooling, health endpoint, spec samples, sinks, model types, this document
 - [x] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
 - [x] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
-- [ ] **3. Property tests:** invariants I1 to I5 under random operation sequences
+- [x] **3. Property tests:** invariants I1 to I5 under random operation sequences
 - [ ] **4. API:** request handling, response models, error mapping, API tests
 - [ ] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
 - [ ] **6. Polish:** README run instructions verified end to end, screenshots
