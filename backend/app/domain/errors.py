@@ -14,7 +14,7 @@ class CatalogAlreadyInitializedError(DomainError):
 
 
 class InvalidCatalogError(DomainError):
-    """Duplicate product ids, or a product whose mass is <= 0 or > the package limit."""
+    """Empty catalog, duplicate product ids, or a mass <= 0 or > the package limit."""
 
 
 class UnknownProductError(DomainError):

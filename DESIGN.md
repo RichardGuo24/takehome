@@ -118,9 +118,11 @@ We brainstormed every reason an order can't go out as a single package right awa
 | Unknown `product_id` in an order or restock | Reject the request (422) |
 | Quantity ≤ 0, non-integer, or missing; empty order | Reject (422) via Pydantic |
 | Same product listed twice in one order or restock | Sum the lines into one quantity |
-| Duplicate `order_id` (e.g. a retried request) | Same payload: return the original result without re-shipping. Different payload: 409 |
+| Duplicate `order_id` (e.g. a retried request) | Same payload (compared after summing duplicate lines): ship nothing new and return the order's current status. Different payload: 409 |
 | A catalog product heavier than 1800 g, or mass ≤ 0 | Rejected at `init_catalog`; such a product could never ship |
 | Duplicate `product_id` in the catalog | Rejected at `init_catalog` |
+| Empty catalog | Rejected at `init_catalog`: it runs only once, so an empty catalog could never take an order |
+| Empty restock | Accepted; changes nothing and ships nothing |
 | Order or restock before `init_catalog` | 409 |
 | Second `init_catalog` | 409 |
 | Two requests at the same moment | One lock serializes all service calls (section 11) |
@@ -506,7 +508,7 @@ Each step ends with passing tests and its own commit.
 
 - [x] **0. Scaffold:** repo layout, tooling, health endpoint, spec samples, sinks, model types, this document
 - [x] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
-- [ ] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
+- [x] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
 - [ ] **3. Property tests:** invariants I1 to I5 under random operation sequences
 - [ ] **4. API:** request handling, response models, error mapping, API tests
 - [ ] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
@@ -532,9 +534,9 @@ Things a reviewer might push on, written down so the answer is ready. When one i
 
 | # | Question | Status |
 | --- | --- | --- |
-| Q1 | Repeated order with the same payload: §4 says "return the original result", §10 says "current status, ships nothing new", the service docstring says `[]` | Open |
-| Q2 | Does "same payload" compare summed quantities (so `[{0:1},{0:1}]` equals `[{0:2}]`)? | Open |
-| Q3 | Is an empty restock `[]` or empty catalog `[]` accepted? | Open |
+| Q1 | Repeated order with the same payload: §4 said "return the original result", §10 says "current status, ships nothing new", the service docstring says `[]` | Resolved in step 2: the service returns `[]` (no new shipments); the API returns the current status. §4 now matches §10. |
+| Q2 | Does "same payload" compare summed quantities (so `[{0:1},{0:1}]` equals `[{0:2}]`)? | Resolved in step 2: yes, both mean the same order |
+| Q3 | Is an empty restock `[]` or empty catalog `[]` accepted? | Resolved in step 2: empty restock is a no-op; empty catalog is `InvalidCatalogError` (422) |
 | Q4 | Upper bound on quantities? 10^9 units of 40 g would create about 22 million packages | Open |
 | Q5 | A reset endpoint for demos? `init_catalog` works once per server start | Open |
 | Q6 | Status code for an idempotent replay of `POST /orders`: 200 or 201? | Open |
