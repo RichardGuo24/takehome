@@ -166,7 +166,7 @@ Kept deliberately small: each piece earns its place.
 
 ```
 ┌──────────────────────── Frontend: React dashboard ────────────────────────┐
-│   InventoryPanel · PendingQueue · ShipmentFeed · Controls (+ simulate)    │
+│ Operator: Inventory, Queue, Shipments | Outside: Hospital, Supplier, Demo │
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     │ HTTP (/api, polled every 1 to 2 s)
 ┌───────────────────────────────────▼───────────────────────────────────────┐
@@ -441,12 +441,18 @@ All requests are all or nothing: validate every line, then apply.
 
 An operator dashboard for one nest, built to show how the system behaves.
 
-| Panel | Shows |
-| --- | --- |
-| **Inventory** | Each product's stock and mass; zero stock highlighted |
-| **Pending queue** | Orders oldest first; per line: requested, shipped, remaining |
-| **Shipment feed** | One card per package with a mass bar (e.g. 1700 / 1800 g) that makes the limit visible |
-| **Controls** | Load the sample catalog, submit an order, submit a restock, and a **simulate** button that sends synthetic hospital orders and random restocks |
+The screen is split by **who acts**, because in the spec the nest doesn't create orders or stock: hospitals and suppliers call the API.
+
+| Area | Who | Shows or does |
+| --- | --- | --- |
+| **Inventory** | Operator (read only) | Each product's stock and mass, and units still waited for; zero stock highlighted |
+| **Waiting for stock** | Operator (read only) | Orders oldest first; per line: shipped of requested |
+| **Packages shipped** | Operator (read only) | One card per package with a mass bar (e.g. 1700 / 1800 g) that makes the limit visible |
+| **Outside the nest: Hospital** | Stand-in for a hospital system | Send an order; the order id is editable (prefilled with the next free one), so duplicate handling can be tried |
+| **Outside the nest: Supplier** | Stand-in for a supplier system | Deliver a restock, or the spec's sample restock |
+| **Outside the nest: Demo** | Plays both roles | Sends a random order or restock every 1.5 s |
+
+The outside column is dashed and tinted so it doesn't read as the operator's own controls. Loading the sample catalog is a one-time setup screen shown before `init_catalog` has run.
 
 The inventory panel shows stock next to what waiting orders still need, which makes invariant I4 visible: no product is ever both in stock and waited for. Shipment bars are colored by product family (red cells, plasma, platelets, cryo) and marked every 100 g.
 

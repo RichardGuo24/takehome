@@ -12,6 +12,14 @@ type Props = {
 
 type Feedback = { kind: 'ok' | 'error'; text: string }
 
+// Form fields hold the raw text the user typed. Binding a number straight to
+// <input type="number"> leaves stray leading zeros ("04") on screen.
+type DraftLine = { product_id: number; quantity: string }
+
+function toLines(drafts: DraftLine[]): Line[] {
+  return drafts.map((d) => ({ product_id: d.product_id, quantity: Number(d.quantity) }))
+}
+
 function describe(shipments: Shipment[]): string {
   if (shipments.length === 0) return 'nothing shipped yet'
   const units = shipments.reduce((n, s) => n + s.shipped.reduce((m, l) => m + l.quantity, 0), 0)
@@ -29,9 +37,12 @@ function randomLines(inventory: InventoryItem[], count: number, maxQty: number):
   return picked.map((p) => ({ product_id: p.product_id, quantity: randomInt(1, maxQty) }))
 }
 
-export function Controls({ inventory, nextOrderId, onChange }: Props) {
-  const [orderLines, setOrderLines] = useState<Line[]>([{ product_id: 0, quantity: 1 }])
-  const [restockLine, setRestockLine] = useState<Line>({ product_id: 0, quantity: 5 })
+// The nest operator doesn't create orders or stock: hospitals and suppliers do,
+// by calling the API. This column stands in for those outside systems.
+export function OutsideInputs({ inventory, nextOrderId, onChange }: Props) {
+  const [orderId, setOrderId] = useState('') // empty means "use nextOrderId"
+  const [orderLines, setOrderLines] = useState<DraftLine[]>([{ product_id: 0, quantity: '1' }])
+  const [restockLine, setRestockLine] = useState<DraftLine>({ product_id: 0, quantity: '5' })
   const [feedback, setFeedback] = useState<Feedback | null>(null)
   const [simulating, setSimulating] = useState(false)
 
@@ -44,27 +55,28 @@ export function Controls({ inventory, nextOrderId, onChange }: Props) {
     onChange()
   }
 
-  function placeOrder(e: FormEvent) {
+  function sendOrder(e: FormEvent) {
     e.preventDefault()
-    const orderId = nextOrderId
+    const id = orderId === '' ? nextOrderId : Number(orderId)
     void run(async () => {
-      const result = await api.placeOrder({ order_id: orderId, requested: orderLines })
-      return `Order ${orderId} placed: ${describe(result.shipments)}.`
+      const result = await api.placeOrder({ order_id: id, requested: toLines(orderLines) })
+      setOrderId('')
+      return `Order ${id} received: ${describe(result.shipments)}.`
     })
   }
 
-  function restock(e: FormEvent) {
+  function deliverRestock(e: FormEvent) {
     e.preventDefault()
     void run(async () => {
-      const result = await api.restock([restockLine])
-      return `Restocked. Waiting orders: ${describe(result.shipments)}.`
+      const result = await api.restock(toLines([restockLine]))
+      return `Restock delivered. Waiting orders: ${describe(result.shipments)}.`
     })
   }
 
-  function restockSample() {
+  function deliverSampleRestock() {
     void run(async () => {
       const result = await api.restock(sampleRestock)
-      return `Sample restock added. Waiting orders: ${describe(result.shipments)}.`
+      return `Sample restock delivered. Waiting orders: ${describe(result.shipments)}.`
     })
   }
 
@@ -102,18 +114,39 @@ export function Controls({ inventory, nextOrderId, onChange }: Props) {
     </option>
   ))
 
+  function updateOrderLine(i: number, change: Partial<DraftLine>) {
+    setOrderLines(orderLines.map((l, j) => (j === i ? { ...l, ...change } : l)))
+  }
+
   return (
-    <section className="controls" aria-label="Controls">
-      <form className="control" onSubmit={placeOrder}>
-        <h2>New order {nextOrderId}</h2>
+    <aside className="outside" aria-labelledby="outside-title">
+      <h2 id="outside-title">Outside the nest</h2>
+      <p className="muted">
+        Stand-ins for the hospital and supplier systems that call this nest's API.
+      </p>
+
+      <p className={`feedback ${feedback?.kind ?? ''}`} role="status" aria-live="polite">
+        {feedback?.text}
+      </p>
+
+      <form className="actor" onSubmit={sendOrder}>
+        <h3>Hospital</h3>
+        <label className="field">
+          <span>Order id</span>
+          <input
+            type="number"
+            min={0}
+            placeholder={String(nextOrderId)}
+            value={orderId}
+            onChange={(e) => setOrderId(e.target.value)}
+          />
+        </label>
         {orderLines.map((line, i) => (
           <div className="line-input" key={i}>
             <select
               aria-label="Product"
               value={line.product_id}
-              onChange={(e) =>
-                setOrderLines(orderLines.map((l, j) => (j === i ? { ...l, product_id: Number(e.target.value) } : l)))
-              }
+              onChange={(e) => updateOrderLine(i, { product_id: Number(e.target.value) })}
             >
               {productOptions}
             </select>
@@ -122,9 +155,7 @@ export function Controls({ inventory, nextOrderId, onChange }: Props) {
               type="number"
               min={1}
               value={line.quantity}
-              onChange={(e) =>
-                setOrderLines(orderLines.map((l, j) => (j === i ? { ...l, quantity: Number(e.target.value) } : l)))
-              }
+              onChange={(e) => updateOrderLine(i, { quantity: e.target.value })}
             />
             {orderLines.length > 1 && (
               <button
@@ -142,16 +173,16 @@ export function Controls({ inventory, nextOrderId, onChange }: Props) {
           <button
             type="button"
             className="quiet"
-            onClick={() => setOrderLines([...orderLines, { product_id: 0, quantity: 1 }])}
+            onClick={() => setOrderLines([...orderLines, { product_id: 0, quantity: '1' }])}
           >
             Add product
           </button>
-          <button type="submit">Place order</button>
+          <button type="submit">Send order</button>
         </div>
       </form>
 
-      <form className="control" onSubmit={restock}>
-        <h2>Restock</h2>
+      <form className="actor" onSubmit={deliverRestock}>
+        <h3>Supplier</h3>
         <div className="line-input">
           <select
             aria-label="Product"
@@ -165,21 +196,22 @@ export function Controls({ inventory, nextOrderId, onChange }: Props) {
             type="number"
             min={1}
             value={restockLine.quantity}
-            onChange={(e) => setRestockLine({ ...restockLine, quantity: Number(e.target.value) })}
+            onChange={(e) => setRestockLine({ ...restockLine, quantity: e.target.value })}
           />
         </div>
         <div className="actions">
-          <button type="button" className="quiet" onClick={restockSample}>
-            Add sample restock
+          <button type="button" className="quiet" onClick={deliverSampleRestock}>
+            Deliver sample restock
           </button>
-          <button type="submit">Restock</button>
+          <button type="submit">Deliver restock</button>
         </div>
       </form>
 
-      <div className="control">
-        <h2>Simulate</h2>
+      <div className="actor">
+        <h3>Demo</h3>
         <p className="muted">
-          Sends a random hospital order or restock every {SIMULATE_EVERY_MS / 1000} s.
+          Plays both roles: a random hospital order or supplier restock every{' '}
+          {SIMULATE_EVERY_MS / 1000} s.
         </p>
         <div className="actions">
           <button
@@ -192,10 +224,6 @@ export function Controls({ inventory, nextOrderId, onChange }: Props) {
           </button>
         </div>
       </div>
-
-      <p className={`feedback ${feedback?.kind ?? ''}`} role="status" aria-live="polite">
-        {feedback?.text}
-      </p>
-    </section>
+    </aside>
   )
 }

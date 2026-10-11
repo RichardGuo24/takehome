@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import sampleCatalog from '../../backend/samples/catalog.json'
 import { api, errorMessage } from './api'
-import { Controls } from './components/Controls'
 import { InventoryPanel } from './components/InventoryPanel'
+import { OutsideInputs } from './components/OutsideInputs'
 import { PendingQueue } from './components/PendingQueue'
 import { ShipmentFeed } from './components/ShipmentFeed'
 import type { ProductMap } from './products'
@@ -61,14 +61,15 @@ export default function App() {
       )}
 
       {data && data.inventory.length > 0 && (
-        <>
-          <Controls inventory={data.inventory} nextOrderId={nextOrderId} onChange={refresh} />
-          <div className="board">
+        <div className="layout">
+          {/* What the nest operator watches. Read only: nothing here changes state. */}
+          <div className="board" aria-label="Operator view">
             <InventoryPanel inventory={data.inventory} orders={data.orders} />
             <ShipmentFeed shipments={data.shipments} products={products} />
             <PendingQueue orders={data.orders} products={products} />
           </div>
-        </>
+          <OutsideInputs inventory={data.inventory} nextOrderId={nextOrderId} onChange={refresh} />
+        </div>
       )}
     </main>
   )

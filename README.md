@@ -7,7 +7,7 @@ An inventory management and order fulfillment system for a single Zipline distri
 
 The full problem statement, design, and tradeoffs are in **[DESIGN.md](DESIGN.md)**.
 
-![The operator dashboard: inventory, packages drawn against the 1800 g limit, and orders waiting for stock](docs/dashboard.jpg)
+![The dashboard: the operator's inventory, packages drawn against the 1800 g limit, and orders waiting for stock, with stand-ins for the hospital and supplier on the right](docs/dashboard.jpg)
 
 ## Quick start
 
@@ -30,14 +30,17 @@ Open http://localhost:5173 for the dashboard, or http://localhost:8000/docs for 
 
 **In the dashboard** (http://localhost:5173):
 
+The left side is what the nest operator sees: inventory, packages shipped, and orders waiting for stock. It only displays state. The **Outside the nest** column on the right stands in for the systems that call the API: a hospital sending orders, a supplier delivering restocks, and a demo that plays both.
+
 1. Click **Load sample catalog**. All 13 products start at 0.
-2. Place an order. With no stock it waits under **Waiting for stock**.
-3. Click **Add sample restock**. The waiting order ships at once, split into packages of at most 1800 g.
-4. Click **Start simulation** to send random hospital orders and restocks every 1.5 s.
+2. Under **Hospital**, click **Send order**. With no stock it waits under **Waiting for stock**.
+3. Under **Supplier**, click **Deliver sample restock**. The waiting order ships at once, split into packages of at most 1800 g.
+4. Under **Demo**, click **Start simulation** to send random orders and restocks every 1.5 s.
+5. To see duplicate-order handling, type an existing order id under **Hospital** with different products and send it.
 
 Every package is also printed to the backend console in the spec's `ship_package` shape.
 
-**With curl**, using the spec's sample payloads (from `backend/`):
+**With curl**, using the spec's sample payloads (run from `backend/`, where `samples/` lives):
 
 ```bash
 curl -X PUT  localhost:8000/api/catalog  -H 'Content-Type: application/json' -d @samples/catalog.json
