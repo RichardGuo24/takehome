@@ -3,11 +3,18 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from enum import StrEnum
 
 ProductId = int
 OrderId = int
 
 MAX_PACKAGE_MASS_G = 1800
+
+
+class OrderStatus(StrEnum):
+    PENDING = "PENDING"
+    PARTIALLY_SHIPPED = "PARTIALLY_SHIPPED"
+    FULFILLED = "FULFILLED"
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,6 +45,18 @@ class PendingOrder:
 
     def is_complete(self) -> bool:
         return all(q == 0 for q in self.remaining.values())
+
+    def shipped(self, product_id: ProductId) -> int:
+        """Units of `product_id` shipped so far (invariant I3)."""
+        return self.requested[product_id] - self.remaining[product_id]
+
+    def status(self) -> OrderStatus:
+        """Derived from the counts, never stored, so it can't drift (DESIGN.md section 7)."""
+        if self.is_complete():
+            return OrderStatus.FULFILLED
+        if self.remaining == self.requested:
+            return OrderStatus.PENDING
+        return OrderStatus.PARTIALLY_SHIPPED
 
 
 @dataclass(frozen=True, slots=True)

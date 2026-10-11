@@ -23,3 +23,7 @@ class UnknownProductError(DomainError):
 
 class DuplicateOrderError(DomainError):
     """An order_id was reused with a different payload."""
+
+
+class OrderNotFoundError(DomainError):
+    """A lookup asked for an order_id that was never accepted."""

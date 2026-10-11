@@ -381,16 +381,20 @@ All routes are under `/api`. Interactive docs: `http://localhost:8000/docs`.
 | PUT | `/catalog` | `init_catalog` | JSON array of products | 201 | 409 already initialized, 422 invalid |
 | POST | `/orders` | `process_order` | `{order_id, requested}` | 201: order status + shipments made now | 409 duplicate id with different payload, 409 no catalog, 422 invalid |
 | POST | `/restocks` | `process_restock` | JSON array of `{product_id, quantity}` | 200: shipments made now | 409 no catalog, 422 invalid or unknown product |
-| GET | `/catalog` | | | 200 | |
-| GET | `/inventory` | | | 200: stock per product | |
-| GET | `/orders` | | | 200: every order with derived status | |
-| GET | `/orders/{id}` | | | 200 | 404 |
+| GET | `/catalog` | | | 200 (`[]` before `init_catalog`) | |
+| GET | `/inventory` | | | 200: stock per product (`[]` before `init_catalog`) | |
+| GET | `/orders` | | | 200: every order, oldest first, with derived status and per-line requested / shipped / remaining | |
+| GET | `/orders/{id}` | | | 200 | 404 `OrderNotFoundError` |
 | GET | `/shipments` | | | 200: newest first | |
 | GET | `/health` | | | 200 | |
 
 **Preserving the spec's contracts.** Each write endpoint accepts exactly the spec's JSON shape; catalog and restock bodies are arrays, the order body is an object. Every package printed by `ConsoleSink` is exactly the spec's `ship_package` shape. The extra `shipment_id` and `mass_g` fields appear only in `GET /shipments`.
 
-**Idempotency.** Re-sending `POST /orders` with the same `order_id` and the same requested quantities returns the order's current status and ships nothing new. The same `order_id` with different quantities is a 409, because it's either a bug or a conflicting edit.
+**Idempotency.** Re-sending `POST /orders` with the same `order_id` and the same requested quantities returns 201 with the order's current status and an empty `shipments` list. It is 201 rather than 200 so a retried request sees the same status code as the original. The same `order_id` with different quantities is a 409, because it's either a bug or a conflicting edit.
+
+**Error body.** Every error, domain or validation, has the shape `{"error": <name>, "detail": ...}`. For validation errors `detail` is Pydantic's list naming the exact field.
+
+**Reads hold the lock too.** Building a response iterates the service's dicts; a concurrent write could change them mid-iteration.
 
 **Why REST rather than RPC.** RPC style would mirror the spec's names (`POST /process_order`). REST names resources (`POST /orders`) and gives a consistent pattern for the reads the dashboard needs. The table above maps each spec function to its endpoint.
 
@@ -427,6 +431,7 @@ Two layers, each catching what it's best at:
 | `DuplicateOrderError` | 409 |
 | `InvalidCatalogError` | 422 |
 | `UnknownProductError` | 422 |
+| `OrderNotFoundError` | 404 |
 
 All requests are all or nothing: validate every line, then apply.
 
@@ -510,7 +515,7 @@ Each step ends with passing tests and its own commit.
 - [x] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
 - [x] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
 - [x] **3. Property tests:** invariants I1 to I5 under random operation sequences
-- [ ] **4. API:** request handling, response models, error mapping, API tests
+- [x] **4. API:** request handling, response models, error mapping, API tests
 - [ ] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
 - [ ] **6. Polish:** README run instructions verified end to end, screenshots
 
@@ -539,4 +544,4 @@ Things a reviewer might push on, written down so the answer is ready. When one i
 | Q3 | Is an empty restock `[]` or empty catalog `[]` accepted? | Resolved in step 2: empty restock is a no-op; empty catalog is `InvalidCatalogError` (422) |
 | Q4 | Upper bound on quantities? 10^9 units of 40 g would create about 22 million packages | Open |
 | Q5 | A reset endpoint for demos? `init_catalog` works once per server start | Open |
-| Q6 | Status code for an idempotent replay of `POST /orders`: 200 or 201? | Open |
+| Q6 | Status code for an idempotent replay of `POST /orders`: 200 or 201? | Resolved in step 4: 201, the same as the original request |

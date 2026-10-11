@@ -13,6 +13,7 @@ from app.domain.errors import (
     CatalogNotInitializedError,
     DuplicateOrderError,
     InvalidCatalogError,
+    OrderNotFoundError,
     UnknownProductError,
 )
 from app.domain.models import (
@@ -109,6 +110,15 @@ class FulfillmentService:
         for product_id, qty in added.items():
             self.stock[product_id] += qty
         return self._fulfill()
+
+    # ---- reads ---------------------------------------------------------------
+
+    def get_order(self, order_id: OrderId) -> PendingOrder:
+        """Return an accepted order, finished or not. Raises OrderNotFoundError."""
+        try:
+            return self.orders[order_id]
+        except KeyError:
+            raise OrderNotFoundError(f"no order {order_id}") from None
 
     # ---- internals ---------------------------------------------------------
 
