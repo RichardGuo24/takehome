@@ -14,7 +14,7 @@ class CatalogAlreadyInitializedError(DomainError):
 
 
 class InvalidCatalogError(DomainError):
-    """Duplicate product ids, or a product whose mass is <= 0 or > the package limit."""
+    """Empty catalog, duplicate product ids, or a mass <= 0 or > the package limit."""
 
 
 class UnknownProductError(DomainError):
@@ -23,3 +23,7 @@ class UnknownProductError(DomainError):
 
 class DuplicateOrderError(DomainError):
     """An order_id was reused with a different payload."""
+
+
+class OrderNotFoundError(DomainError):
+    """A lookup asked for an order_id that was never accepted."""

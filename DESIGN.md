@@ -21,6 +21,7 @@ This document explains the problem, the requirements we derived from it, and how
 15. [Testing strategy](#15-testing-strategy)
 16. [Out of scope and future work](#16-out-of-scope-and-future-work)
 17. [Build plan](#17-build-plan)
+18. [Known tensions and open questions](#18-known-tensions-and-open-questions)
 
 ---
 
@@ -117,9 +118,11 @@ We brainstormed every reason an order can't go out as a single package right awa
 | Unknown `product_id` in an order or restock | Reject the request (422) |
 | Quantity ≤ 0, non-integer, or missing; empty order | Reject (422) via Pydantic |
 | Same product listed twice in one order or restock | Sum the lines into one quantity |
-| Duplicate `order_id` (e.g. a retried request) | Same payload: return the original result without re-shipping. Different payload: 409 |
+| Duplicate `order_id` (e.g. a retried request) | Same payload (compared after summing duplicate lines): ship nothing new and return the order's current status. Different payload: 409 |
 | A catalog product heavier than 1800 g, or mass ≤ 0 | Rejected at `init_catalog`; such a product could never ship |
 | Duplicate `product_id` in the catalog | Rejected at `init_catalog` |
+| Empty catalog | Rejected at `init_catalog`: it runs only once, so an empty catalog could never take an order |
+| Empty restock | Accepted; changes nothing and ships nothing |
 | Order or restock before `init_catalog` | 409 |
 | Second `init_catalog` | 409 |
 | Two requests at the same moment | One lock serializes all service calls (section 11) |
@@ -163,7 +166,7 @@ Kept deliberately small: each piece earns its place.
 
 ```
 ┌──────────────────────── Frontend: React dashboard ────────────────────────┐
-│   InventoryPanel · PendingQueue · ShipmentFeed · Controls (+ simulate)    │
+│ Operator: Inventory, Queue, Shipments | Outside: Hospital, Supplier, Demo │
 └───────────────────────────────────┬───────────────────────────────────────┘
                                     │ HTTP (/api, polled every 1 to 2 s)
 ┌───────────────────────────────────▼───────────────────────────────────────┐
@@ -308,6 +311,12 @@ FFD is simple greedy with one extra step: sort heaviest first.
 
 **Pack by count, not by unit.** Expanding quantities into individual units would make an order of 10,000 units cost 10,000 placements. Computing ⌊c / mass⌋ places many units at once, so the work depends on the number of products and packages, not the number of units.
 
+**Why packing by count is still FFD.** Units of one product are adjacent in the sorted order, and a package's free capacity only shrinks. Once a package can't take one more unit of a product, it can't take any later unit of that product either. So putting ⌊c / mass⌋ units into each package in turn gives exactly the packages that unit-by-unit First Fit would give, and the 11/9 bound still applies.
+
+**Ties: equal masses go in `product_id` order.** The sort key is `(-mass_g, product_id)`. Tied products never change the number of packages or their masses, since equal units use equal space. They only decide which product lands in which package. For example, 4 × FFP A+ (id 10) and 4 × FFP B+ (id 11), all 300 g, always pack as `{10: 4, 11: 2}` then `{11: 2}`, however the hospital listed the lines. Sorting by mass alone would also be deterministic (Python's sort is stable), but the output would then depend on the key order of `take`. With the id tie-breaker, the output depends only on what `take` contains, so tests can assert exact packages.
+
+**Bad input is a programming error.** The packer skips zero quantities. It raises `ValueError` for a negative quantity or a product whose mass is outside (0, limit]. The service and catalog validation should make both impossible. Without the check, a too-heavy product would make the packer open empty packages forever. `ValueError` is deliberately not a `DomainError`, so if it ever happens the API returns a 500 instead of blaming the caller.
+
 **Worked example** (the spec's sample order: 2 × RBC A+ at 700 g, 4 × FFP A+ at 300 g):
 
 1. Total mass = 2 · 700 + 4 · 300 = 1400 + 1200 = 2600 g. Lower bound: ⌈2600 / 1800⌉ = 2 packages.
@@ -372,16 +381,23 @@ All routes are under `/api`. Interactive docs: `http://localhost:8000/docs`.
 | PUT | `/catalog` | `init_catalog` | JSON array of products | 201 | 409 already initialized, 422 invalid |
 | POST | `/orders` | `process_order` | `{order_id, requested}` | 201: order status + shipments made now | 409 duplicate id with different payload, 409 no catalog, 422 invalid |
 | POST | `/restocks` | `process_restock` | JSON array of `{product_id, quantity}` | 200: shipments made now | 409 no catalog, 422 invalid or unknown product |
-| GET | `/catalog` | | | 200 | |
-| GET | `/inventory` | | | 200: stock per product | |
-| GET | `/orders` | | | 200: every order with derived status | |
-| GET | `/orders/{id}` | | | 200 | 404 |
+| GET | `/catalog` | | | 200 (`[]` before `init_catalog`) | |
+| GET | `/inventory` | | | 200: stock per product (`[]` before `init_catalog`) | |
+| GET | `/orders` | | | 200: every order, oldest first, with derived status and per-line requested / shipped / remaining | |
+| GET | `/orders/{id}` | | | 200 | 404 `OrderNotFoundError` |
 | GET | `/shipments` | | | 200: newest first | |
 | GET | `/health` | | | 200 | |
+| POST | `/reset` | (demo only) | | 204: back to before `init_catalog` | |
 
 **Preserving the spec's contracts.** Each write endpoint accepts exactly the spec's JSON shape; catalog and restock bodies are arrays, the order body is an object. Every package printed by `ConsoleSink` is exactly the spec's `ship_package` shape. The extra `shipment_id` and `mass_g` fields appear only in `GET /shipments`.
 
-**Idempotency.** Re-sending `POST /orders` with the same `order_id` and the same requested quantities returns the order's current status and ships nothing new. The same `order_id` with different quantities is a 409, because it's either a bug or a conflicting edit.
+**Idempotency.** Re-sending `POST /orders` with the same `order_id` and the same requested quantities returns 201 with the order's current status and an empty `shipments` list. It is 201 rather than 200 so a retried request sees the same status code as the original. The same `order_id` with different quantities is a 409, because it's either a bug or a conflicting edit.
+
+**Reset is demo only.** `POST /reset` is not in the spec. It clears the catalog, stock, orders, and shipments so the dashboard can start a fresh demo without restarting the server. `FulfillmentService.__init__` calls `reset()`, so all state is set up in one place and a reset can't miss a field. A real nest would not expose it; with deployment we'd remove it or put it behind an admin role.
+
+**Error body.** Every error, domain or validation, has the shape `{"error": <name>, "detail": ...}`. For validation errors `detail` is Pydantic's list naming the exact field.
+
+**Reads hold the lock too.** Building a response iterates the service's dicts; a concurrent write could change them mid-iteration.
 
 **Why REST rather than RPC.** RPC style would mirror the spec's names (`POST /process_order`). REST names resources (`POST /orders`) and gives a consistent pattern for the reads the dashboard needs. The table above maps each spec function to its endpoint.
 
@@ -418,6 +434,7 @@ Two layers, each catching what it's best at:
 | `DuplicateOrderError` | 409 |
 | `InvalidCatalogError` | 422 |
 | `UnknownProductError` | 422 |
+| `OrderNotFoundError` | 404 |
 
 All requests are all or nothing: validate every line, then apply.
 
@@ -427,14 +444,25 @@ All requests are all or nothing: validate every line, then apply.
 
 An operator dashboard for one nest, built to show how the system behaves.
 
-| Panel | Shows |
-| --- | --- |
-| **Inventory** | Each product's stock and mass; zero stock highlighted |
-| **Pending queue** | Orders oldest first; per line: requested, shipped, remaining |
-| **Shipment feed** | One card per package with a mass bar (e.g. 1700 / 1800 g) that makes the limit visible |
-| **Controls** | Load the sample catalog, submit an order, submit a restock, and a **simulate** button that sends synthetic hospital orders and random restocks |
+The screen is split by **who acts**, because in the spec the nest doesn't create orders or stock: hospitals and suppliers call the API.
 
-Data comes from the GET endpoints through a small polling hook (`src/usePolling.ts`). TypeScript types are hand-written in `src/api.ts` to mirror the Pydantic schemas; there are only a handful. The Vite dev server proxies `/api` to the backend, so there is one origin and no CORS configuration.
+| Area | Who | Shows or does |
+| --- | --- | --- |
+| **Sidebar: Hospital** | Stand-in for a hospital system | Send an order; the order id is editable (prefilled with the next free one), so duplicate handling can be tried |
+| **Sidebar: Supplier** | Stand-in for a supplier system | Deliver a restock, or the spec's sample restock |
+| **Sidebar: Demo** | Plays both roles | A random order (60%) or restock (40%) every 1.5 s; **Reset demo** calls `POST /reset` and reloads the sample catalog |
+| **Headline numbers** | Operator (read only) | Units in stock, orders waiting, packages shipped, average package fill |
+| **Inventory** | Operator (read only) | Each product's stock and mass, and units still waited for; zero stock muted |
+| **Packages shipped** | Operator (read only) | One card per package with a bar against the 1800 g limit, gridlines every 100 g |
+| **Waiting for stock** | Operator (read only) | Orders oldest first; per line: shipped of requested |
+
+The app is exactly one screen tall on desktop; each panel scrolls inside itself, so a long shipment feed never stretches the page. Below 1100 px everything stacks and the page scrolls instead.
+
+**Color.** Product families are a categorical palette: red cells red, plasma orange, platelets teal, cryo indigo. It was checked with a colorblind-safety validator, light and dark separately (dark uses its own darker steps). Two pairs sit in the "needs secondary encoding" band, which the bars have: a 2 px gap between segments and a text legend under every bar. Status chips use the accent and a warm tone, never a product color.
+
+The inventory panel shows stock next to what waiting orders still need, which makes invariant I4 visible: no product is ever both in stock and waited for. The sample catalog and sample restock are imported straight from `backend/samples/`, so there is one copy of the spec's data; `vite.config.ts` allows the dev server to read that folder.
+
+Data comes from the GET endpoints through a small polling hook (`src/usePolling.ts`). One poll fetches inventory, orders, and shipments together, so the panels always agree with each other. TypeScript types are hand-written in `src/api.ts` to mirror the Pydantic schemas; there are only a handful. The Vite dev server proxies `/api` to the backend, so there is one origin and no CORS configuration.
 
 ---
 
@@ -452,6 +480,8 @@ Each decision has a stated choice and the condition under which we'd choose diff
 | Concurrency | One lock, one process | Throughput beyond one core | Multiple processes or nests: then a single writer per nest, or DB transactions |
 | Validation | Whole request rejected if any line is invalid | Best-effort partial acceptance | Callers preferred best effort |
 | Packing | FFD by count | Guaranteed optimal package count | Package count dominated cost: then an exact packer for small orders |
+| Packer ties | Equal masses packed in `product_id` order | Packages following the hospital's line order | Operators wanted packages to mirror the order form |
+| Packer bad input | `ValueError` (a bug, so 500), not a domain error | A friendly error if the service ever sends bad input | Never: the service validates first, so this should be unreachable |
 | IDs and time | Sequential shipment IDs | Uniqueness across processes | Distributed deployment: then UUIDs |
 
 ---
@@ -496,9 +526,36 @@ Run with `make test`; lint with `make lint`.
 Each step ends with passing tests and its own commit.
 
 - [x] **0. Scaffold:** repo layout, tooling, health endpoint, spec samples, sinks, model types, this document
-- [ ] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
-- [ ] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
-- [ ] **3. Property tests:** invariants I1 to I5 under random operation sequences
-- [ ] **4. API:** request handling, response models, error mapping, API tests
-- [ ] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
-- [ ] **6. Polish:** README run instructions verified end to end, screenshots
+- [x] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
+- [x] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
+- [x] **3. Property tests:** invariants I1 to I5 under random operation sequences
+- [x] **4. API:** request handling, response models, error mapping, API tests
+- [x] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
+- [x] **6. Polish:** README run instructions verified end to end, screenshots
+
+---
+
+## 18. Known tensions and open questions
+
+Things a reviewer might push on, written down so the answer is ready. When one is resolved, record the decision here and in the section it affects.
+
+### Tensions in the design
+
+| # | Tension | Where | Our answer |
+| --- | --- | --- | --- |
+| T1 | `Packer` is a Protocol with one implementation, while CLAUDE.md says no abstraction without a second implementation | §6, `packer.py` | It is a test seam for the trickiest algorithm, and a Protocol costs one class with no runtime cost. `ShipmentSink` has two real implementations, so it is clearly justified. We'd accept removing `Packer` if a reviewer prefers. |
+| T2 | Catalog mass is checked twice: Pydantic (`ProductIn.mass_g`) and the core (`InvalidCatalogError`) | §12, `schemas.py` | Defense in depth. Over HTTP, Pydantic always fires first with a 422. The core check protects direct callers (tests, a future CLI). |
+| T3 | `PendingOrder.remaining` defaults to `{}`, and `is_complete()` is `True` for an empty dict | `models.py` | The service must copy `requested` into `remaining` when it accepts an order. A test covers this. |
+| T4 | The symbol for I5 only states "non-empty"; "belongs to exactly one order" holds because `Shipment` has a single `order_id` | §2 | Enforced by the type, not by a runtime check. |
+| T5 | The packer raises `ValueError` on bad input instead of a `DomainError` | §8.2 | Bad input to the packer means a bug in the service, not a bad request, so it should surface as a 500. |
+
+### Open questions
+
+| # | Question | Status |
+| --- | --- | --- |
+| Q1 | Repeated order with the same payload: §4 said "return the original result", §10 says "current status, ships nothing new", the service docstring says `[]` | Resolved in step 2: the service returns `[]` (no new shipments); the API returns the current status. §4 now matches §10. |
+| Q2 | Does "same payload" compare summed quantities (so `[{0:1},{0:1}]` equals `[{0:2}]`)? | Resolved in step 2: yes, both mean the same order |
+| Q3 | Is an empty restock `[]` or empty catalog `[]` accepted? | Resolved in step 2: empty restock is a no-op; empty catalog is `InvalidCatalogError` (422) |
+| Q4 | Upper bound on quantities? 10^9 units of 40 g would create about 22 million packages | Open |
+| Q5 | A reset endpoint for demos? `init_catalog` works once per server start | Resolved: yes, `POST /reset`, documented as demo only (§10) |
+| Q6 | Status code for an idempotent replay of `POST /orders`: 200 or 201? | Resolved in step 4: 201, the same as the original request |

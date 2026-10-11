@@ -1,39 +1,622 @@
+/* ---- tokens ----
+   Product family colors are categorical and were checked with a colorblind-safety
+   validator (light and dark separately). Bars always carry a text legend too. */
 :root {
-  --text: #1c1b1f;
-  --muted: #6b6375;
-  --bg: #fafafa;
-  --border: #e5e4e7;
+  --bg: #e9ebfa;
+  --surface: #ffffff;
+  --ink: #1d1f3b;
+  --muted: #6a6e8c;
+  --line: #e3e5f3;
+  --accent: #4f46c8;
+  --accent-soft: #eceafd;
+  --focus: #4f46c8;
+  --ok: #1f7a5a;
+  --alert: #c0313f;
+  --warn: #b5651d;
+  --warn-soft: #fdf0e3;
+
+  --sidebar: #2e2a7a;
+  --sidebar-raised: #3a3590;
+  --sidebar-ink: #ffffff;
+  --sidebar-muted: #c3c1ef;
+  --sidebar-line: #4a45a3;
+
+  --rbc: #c0313f;
+  --ffp: #e8873a;
+  --plt: #1f9e8f;
+  --cryo: #5b5bd6;
+  --other: #8a8fa8;
+
+  --radius: 16px;
+  --radius-sm: 8px;
+  --shadow: 0 1px 2px rgb(40 40 110 / 6%), 0 8px 24px rgb(40 40 110 / 6%);
 
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: var(--text);
+  font-size: 15px;
+  line-height: 1.45;
+  color: var(--ink);
   background: var(--bg);
+  font-variant-numeric: tabular-nums;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --text: #f2f1f4;
-    --muted: #a39cab;
-    --bg: #141316;
-    --border: #2e2c33;
+    --bg: #12142a;
+    --surface: #1b1d33;
+    --ink: #eceefa;
+    --muted: #a2a6c6;
+    --line: #2c2f4d;
+    --accent: #8f88f5;
+    --accent-soft: #2a2a55;
+    --focus: #a59ff8;
+    --ok: #5fcf9f;
+    --alert: #f0727f;
+    --warn: #f0a35c;
+    --warn-soft: #3a2a1d;
+
+    --sidebar: #1e1b52;
+    --sidebar-raised: #2a2670;
+    --sidebar-muted: #b0addf;
+    --sidebar-line: #3a3688;
+
+    --rbc: #d9455b;
+    --ffp: #bf8526;
+    --plt: #2aa898;
+    --cryo: #7b7be8;
+    --other: #8d93ae;
+
+    --shadow: none;
   }
+}
+
+* {
+  box-sizing: border-box;
 }
 
 body {
   margin: 0;
+  background: var(--bg);
 }
 
-main {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 24px 16px;
+h1,
+h2,
+h3,
+p {
+  margin: 0;
 }
 
-h1 {
-  margin: 0 0 4px;
-  font-size: 1.5rem;
+h2 {
+  font-size: 1rem;
+  font-weight: 650;
 }
 
 .muted {
   color: var(--muted);
+}
+
+.num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.count {
+  margin-left: 6px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* ---- app shell: one screen tall; panels scroll inside themselves ---- */
+
+.app {
+  display: grid;
+  grid-template-columns: 330px minmax(0, 1fr);
+  height: 100vh;
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 0;
+  padding: 20px 24px;
+}
+
+.main-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px 24px;
+}
+
+.main-head h2 {
+  font-size: 1.35rem;
+}
+
+.connection {
+  color: var(--muted);
+}
+
+.connection::before {
+  content: '';
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  margin-right: 8px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.connection.down {
+  color: var(--alert);
+}
+
+.connection.down::before {
+  background: var(--alert);
+}
+
+/* ---- sidebar: outside the nest ---- */
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 18px 18px 20px;
+  overflow-y: auto;
+  background: var(--sidebar);
+  color: var(--sidebar-ink);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+/* Four quarters in the product family colors. */
+.brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: conic-gradient(var(--rbc) 0 25%, var(--ffp) 0 50%, var(--plt) 0 75%, var(--cryo) 0);
+}
+
+.sidebar .hint {
+  color: var(--sidebar-muted);
+  font-size: 0.9rem;
+}
+
+.outside h2 {
+  font-size: 0.95rem;
+  margin-bottom: 4px;
+}
+
+.actor {
+  margin-top: 10px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--sidebar-raised);
+}
+
+.actor h3 {
+  margin-bottom: 8px;
+  font-size: 0.95rem;
+  font-weight: 650;
+}
+
+.actor .hint {
+  margin-bottom: 4px;
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: var(--sidebar-muted);
+}
+
+.line-input {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.line-input select {
+  flex: 1;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.feedback {
+  min-height: 1.45em;
+  margin-top: 10px;
+  font-size: 0.9rem;
+}
+
+.sidebar .feedback.ok {
+  color: #9be6c4;
+}
+
+.sidebar .feedback.error {
+  color: #ffb3bb;
+}
+
+/* ---- buttons and inputs ---- */
+
+button {
+  font: inherit;
+  font-weight: 600;
+  padding: 7px 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.sidebar button {
+  background: #ffffff;
+  color: var(--sidebar);
+}
+
+.sidebar button.quiet {
+  background: transparent;
+  color: var(--sidebar-ink);
+  box-shadow: inset 0 0 0 1px var(--sidebar-line);
+}
+
+.sidebar button.stop {
+  background: #ffb3bb;
+  color: #5a0f19;
+}
+
+select,
+input {
+  font: inherit;
+  padding: 6px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: #ffffff;
+  color: #1d1f3b;
+  min-width: 0;
+}
+
+input[type='number'] {
+  width: 5.5em;
+}
+
+/* ---- setup (before init_catalog) ---- */
+
+.setup {
+  max-width: 60ch;
+  padding: 24px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.setup h2 {
+  margin-bottom: 8px;
+}
+
+.setup p {
+  margin-bottom: 16px;
+}
+
+.setup .feedback.error {
+  color: var(--alert);
+}
+
+/* ---- headline numbers ---- */
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
   margin: 0;
+}
+
+.stat {
+  padding: 16px 18px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+.stat dt {
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.stat dd {
+  margin: 2px 0;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.stat p {
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+/* ---- operator panels ---- */
+
+.board {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(280px, 1fr) minmax(320px, 1.3fr) minmax(260px, 1fr);
+  gap: 16px;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.panel > h2 {
+  padding: 16px 18px 12px;
+}
+
+.panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 18px 16px;
+}
+
+.empty-state {
+  color: var(--muted);
+  max-width: 40ch;
+}
+
+/* Small screens: stack everything and let the page scroll instead. */
+@media (max-width: 1100px) {
+  .app {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .board {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-body {
+    max-height: 60vh;
+  }
+}
+
+/* ---- product family swatches ---- */
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  margin-right: 8px;
+  border-radius: 3px;
+  flex: none;
+}
+
+.rbc {
+  background: var(--rbc);
+}
+
+.ffp {
+  background: var(--ffp);
+}
+
+.plt {
+  background: var(--plt);
+}
+
+.cryo {
+  background: var(--cryo);
+}
+
+.other {
+  background: var(--other);
+}
+
+/* ---- inventory ---- */
+
+.inventory {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.inventory th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  font-weight: 500;
+  font-size: 0.85rem;
+  color: var(--muted);
+  text-align: left;
+  padding: 0 0 8px;
+  border-bottom: 1px solid var(--line);
+}
+
+.inventory th.num {
+  text-align: right;
+}
+
+.inventory td {
+  padding: 7px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.inventory td + td,
+.inventory th + th {
+  padding-left: 12px;
+}
+
+.inventory .stock {
+  font-weight: 650;
+}
+
+.inventory tr.empty .stock {
+  color: var(--muted);
+  font-weight: 400;
+}
+
+.inventory .short {
+  color: var(--alert);
+  font-weight: 650;
+}
+
+/* ---- packages: the scale bar is the one loud element ---- */
+
+.feed,
+.queue,
+.contents,
+.lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.package,
+.queued {
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.package:first-child,
+.queued:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+
+.package-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+/* Gridlines every 100 g; the dark right edge is the 1800 g limit. */
+.scale {
+  display: flex;
+  gap: 2px;
+  height: 14px;
+  border-radius: 4px;
+  overflow: hidden;
+  background:
+    repeating-linear-gradient(
+      to right,
+      transparent 0,
+      transparent calc(100% / 18 - 1px),
+      var(--surface) calc(100% / 18 - 1px),
+      var(--surface) calc(100% / 18)
+    ),
+    var(--accent-soft);
+  position: relative;
+}
+
+.scale::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--ink);
+}
+
+.segment {
+  height: 100%;
+  border-radius: 3px;
+  transform-origin: left;
+  animation: fill 500ms ease-out;
+}
+
+@keyframes fill {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .segment {
+    animation: none;
+  }
+}
+
+.contents {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin-top: 8px;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.contents li {
+  display: flex;
+  align-items: center;
+}
+
+/* ---- waiting queue ---- */
+
+.status {
+  font-size: 0.8rem;
+  font-weight: 600;
+  padding: 2px 10px;
+  border-radius: 999px;
+  white-space: nowrap;
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.status.partially_shipped {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
+.lines li {
+  display: flex;
+  align-items: center;
+  padding: 3px 0;
+}
+
+.line-name {
+  flex: 1;
+}
+
+.lines li.done {
+  color: var(--muted);
+}
+
+.panel-body > .muted {
+  margin-top: 12px;
 }

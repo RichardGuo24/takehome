@@ -7,7 +7,7 @@ An inventory management and order fulfillment system for a single Zipline distri
 
 The full problem statement, design, and tradeoffs are in **[DESIGN.md](DESIGN.md)**.
 
-> **Status:** scaffold. The domain core, API endpoints, and dashboard are built step by step per [DESIGN.md §17](DESIGN.md#17-build-plan).
+![The dashboard: stand-ins for the hospital and supplier in the sidebar; the operator's headline numbers, inventory, packages drawn against the 1800 g limit, and orders waiting for stock](docs/dashboard.jpg)
 
 ## Quick start
 
@@ -25,6 +25,38 @@ Open http://localhost:5173 for the dashboard, or http://localhost:8000/docs for 
 | `make test` | Backend tests (pytest + hypothesis) |
 | `make lint` | ruff (backend) and oxlint (frontend) |
 | `make fmt` | Auto-format the backend |
+
+## Try it
+
+**In the dashboard** (http://localhost:5173):
+
+The main area is what the nest operator sees: headline numbers, inventory, packages shipped, and orders waiting for stock. It only displays state. The sidebar, **Outside the nest**, stands in for the systems that call the API: a hospital sending orders, a supplier delivering restocks, and a demo that plays both.
+
+1. Click **Load sample catalog**. All 13 products start at 0.
+2. Under **Hospital**, click **Send order**. With no stock it waits under **Waiting for stock**.
+3. Under **Supplier**, click **Deliver sample restock**. The waiting order ships at once, split into packages of at most 1800 g.
+4. Under **Demo**, click **Start simulation** to send random orders and restocks every 1.5 s.
+5. To see duplicate-order handling, type an existing order id under **Hospital** with different products and send it.
+6. **Reset demo** clears everything and reloads the sample catalog (demo only, via `POST /api/reset`).
+
+Every package is also printed to the backend console in the spec's `ship_package` shape.
+
+**With curl**, using the spec's sample payloads (run from `backend/`, where `samples/` lives):
+
+```bash
+curl -X PUT  localhost:8000/api/catalog  -H 'Content-Type: application/json' -d @samples/catalog.json
+curl -X POST localhost:8000/api/orders   -H 'Content-Type: application/json' -d @samples/order.json
+curl -X POST localhost:8000/api/restocks -H 'Content-Type: application/json' -d @samples/restock.json
+```
+
+The order waits (no stock yet). The restock ships it as two packages, and the backend console prints:
+
+```json
+{"order_id": 123, "shipped": [{"product_id": 0, "quantity": 2}, {"product_id": 10, "quantity": 1}]}
+{"order_id": 123, "shipped": [{"product_id": 10, "quantity": 3}]}
+```
+
+State is in memory, so restarting the backend starts over with no catalog. `curl -X POST localhost:8000/api/reset` does the same without a restart.
 
 ## How the spec maps to the API
 
@@ -45,11 +77,12 @@ backend/
     domain/      models, errors, packer, sinks, service (pure Python)
     api/         Pydantic schemas, routes, error mapping
     main.py      app wiring
-  tests/
+  tests/         packer, service, property (hypothesis), and API tests
   samples/       catalog, restock, and order JSON from the spec
 frontend/
   src/           App, api.ts (types + fetch), usePolling.ts, components/
-DESIGN.md        problem, design, tradeoffs, build plan
+docs/            dashboard screenshot
+DESIGN.md        problem, design, tradeoffs, build plan, open questions
 CLAUDE.md        instructions for AI coding agents working in this repo
 Makefile
 ```
