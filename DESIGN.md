@@ -21,6 +21,7 @@ This document explains the problem, the requirements we derived from it, and how
 15. [Testing strategy](#15-testing-strategy)
 16. [Out of scope and future work](#16-out-of-scope-and-future-work)
 17. [Build plan](#17-build-plan)
+18. [Known tensions and open questions](#18-known-tensions-and-open-questions)
 
 ---
 
@@ -308,6 +309,12 @@ FFD is simple greedy with one extra step: sort heaviest first.
 
 **Pack by count, not by unit.** Expanding quantities into individual units would make an order of 10,000 units cost 10,000 placements. Computing ⌊c / mass⌋ places many units at once, so the work depends on the number of products and packages, not the number of units.
 
+**Why packing by count is still FFD.** Units of one product are adjacent in the sorted order, and a package's free capacity only shrinks. Once a package can't take one more unit of a product, it can't take any later unit of that product either. So putting ⌊c / mass⌋ units into each package in turn gives exactly the packages that unit-by-unit First Fit would give, and the 11/9 bound still applies.
+
+**Ties: equal masses go in `product_id` order.** The sort key is `(-mass_g, product_id)`. Tied products never change the number of packages or their masses, since equal units use equal space. They only decide which product lands in which package. For example, 4 × FFP A+ (id 10) and 4 × FFP B+ (id 11), all 300 g, always pack as `{10: 4, 11: 2}` then `{11: 2}`, however the hospital listed the lines. Sorting by mass alone would also be deterministic (Python's sort is stable), but the output would then depend on the key order of `take`. With the id tie-breaker, the output depends only on what `take` contains, so tests can assert exact packages.
+
+**Bad input is a programming error.** The packer skips zero quantities. It raises `ValueError` for a negative quantity or a product whose mass is outside (0, limit]. The service and catalog validation should make both impossible. Without the check, a too-heavy product would make the packer open empty packages forever. `ValueError` is deliberately not a `DomainError`, so if it ever happens the API returns a 500 instead of blaming the caller.
+
 **Worked example** (the spec's sample order: 2 × RBC A+ at 700 g, 4 × FFP A+ at 300 g):
 
 1. Total mass = 2 · 700 + 4 · 300 = 1400 + 1200 = 2600 g. Lower bound: ⌈2600 / 1800⌉ = 2 packages.
@@ -452,6 +459,8 @@ Each decision has a stated choice and the condition under which we'd choose diff
 | Concurrency | One lock, one process | Throughput beyond one core | Multiple processes or nests: then a single writer per nest, or DB transactions |
 | Validation | Whole request rejected if any line is invalid | Best-effort partial acceptance | Callers preferred best effort |
 | Packing | FFD by count | Guaranteed optimal package count | Package count dominated cost: then an exact packer for small orders |
+| Packer ties | Equal masses packed in `product_id` order | Packages following the hospital's line order | Operators wanted packages to mirror the order form |
+| Packer bad input | `ValueError` (a bug, so 500), not a domain error | A friendly error if the service ever sends bad input | Never: the service validates first, so this should be unreachable |
 | IDs and time | Sequential shipment IDs | Uniqueness across processes | Distributed deployment: then UUIDs |
 
 ---
@@ -496,9 +505,36 @@ Run with `make test`; lint with `make lint`.
 Each step ends with passing tests and its own commit.
 
 - [x] **0. Scaffold:** repo layout, tooling, health endpoint, spec samples, sinks, model types, this document
-- [ ] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
+- [x] **1. Packer:** `FirstFitDecreasingPacker.pack` + unit tests
 - [ ] **2. Service:** `init_catalog`, `process_order`, `process_restock`, `_fulfill` + unit and scenario tests
 - [ ] **3. Property tests:** invariants I1 to I5 under random operation sequences
 - [ ] **4. API:** request handling, response models, error mapping, API tests
 - [ ] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
 - [ ] **6. Polish:** README run instructions verified end to end, screenshots
+
+---
+
+## 18. Known tensions and open questions
+
+Things a reviewer might push on, written down so the answer is ready. When one is resolved, record the decision here and in the section it affects.
+
+### Tensions in the design
+
+| # | Tension | Where | Our answer |
+| --- | --- | --- | --- |
+| T1 | `Packer` is a Protocol with one implementation, while CLAUDE.md says no abstraction without a second implementation | §6, `packer.py` | It is a test seam for the trickiest algorithm, and a Protocol costs one class with no runtime cost. `ShipmentSink` has two real implementations, so it is clearly justified. We'd accept removing `Packer` if a reviewer prefers. |
+| T2 | Catalog mass is checked twice: Pydantic (`ProductIn.mass_g`) and the core (`InvalidCatalogError`) | §12, `schemas.py` | Defense in depth. Over HTTP, Pydantic always fires first with a 422. The core check protects direct callers (tests, a future CLI). |
+| T3 | `PendingOrder.remaining` defaults to `{}`, and `is_complete()` is `True` for an empty dict | `models.py` | The service must copy `requested` into `remaining` when it accepts an order. A test covers this. |
+| T4 | The symbol for I5 only states "non-empty"; "belongs to exactly one order" holds because `Shipment` has a single `order_id` | §2 | Enforced by the type, not by a runtime check. |
+| T5 | The packer raises `ValueError` on bad input instead of a `DomainError` | §8.2 | Bad input to the packer means a bug in the service, not a bad request, so it should surface as a 500. |
+
+### Open questions
+
+| # | Question | Status |
+| --- | --- | --- |
+| Q1 | Repeated order with the same payload: §4 says "return the original result", §10 says "current status, ships nothing new", the service docstring says `[]` | Open |
+| Q2 | Does "same payload" compare summed quantities (so `[{0:1},{0:1}]` equals `[{0:2}]`)? | Open |
+| Q3 | Is an empty restock `[]` or empty catalog `[]` accepted? | Open |
+| Q4 | Upper bound on quantities? 10^9 units of 40 g would create about 22 million packages | Open |
+| Q5 | A reset endpoint for demos? `init_catalog` works once per server start | Open |
+| Q6 | Status code for an idempotent replay of `POST /orders`: 200 or 201? | Open |
