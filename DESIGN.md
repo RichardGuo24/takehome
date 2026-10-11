@@ -521,7 +521,7 @@ Each step ends with passing tests and its own commit.
 - [x] **3. Property tests:** invariants I1 to I5 under random operation sequences
 - [x] **4. API:** request handling, response models, error mapping, API tests
 - [x] **5. Frontend:** inventory, pending queue, shipment feed, controls, simulate
-- [ ] **6. Polish:** README run instructions verified end to end, screenshots
+- [x] **6. Polish:** README run instructions verified end to end, screenshots
 
 ---
 

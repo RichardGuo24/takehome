@@ -7,7 +7,7 @@ An inventory management and order fulfillment system for a single Zipline distri
 
 The full problem statement, design, and tradeoffs are in **[DESIGN.md](DESIGN.md)**.
 
-> **Status:** scaffold. The domain core, API endpoints, and dashboard are built step by step per [DESIGN.md §17](DESIGN.md#17-build-plan).
+![The operator dashboard: inventory, packages drawn against the 1800 g limit, and orders waiting for stock](docs/dashboard.jpg)
 
 ## Quick start
 
@@ -25,6 +25,34 @@ Open http://localhost:5173 for the dashboard, or http://localhost:8000/docs for 
 | `make test` | Backend tests (pytest + hypothesis) |
 | `make lint` | ruff (backend) and oxlint (frontend) |
 | `make fmt` | Auto-format the backend |
+
+## Try it
+
+**In the dashboard** (http://localhost:5173):
+
+1. Click **Load sample catalog**. All 13 products start at 0.
+2. Place an order. With no stock it waits under **Waiting for stock**.
+3. Click **Add sample restock**. The waiting order ships at once, split into packages of at most 1800 g.
+4. Click **Start simulation** to send random hospital orders and restocks every 1.5 s.
+
+Every package is also printed to the backend console in the spec's `ship_package` shape.
+
+**With curl**, using the spec's sample payloads (from `backend/`):
+
+```bash
+curl -X PUT  localhost:8000/api/catalog  -H 'Content-Type: application/json' -d @samples/catalog.json
+curl -X POST localhost:8000/api/orders   -H 'Content-Type: application/json' -d @samples/order.json
+curl -X POST localhost:8000/api/restocks -H 'Content-Type: application/json' -d @samples/restock.json
+```
+
+The order waits (no stock yet). The restock ships it as two packages, and the backend console prints:
+
+```json
+{"order_id": 123, "shipped": [{"product_id": 0, "quantity": 2}, {"product_id": 10, "quantity": 1}]}
+{"order_id": 123, "shipped": [{"product_id": 10, "quantity": 3}]}
+```
+
+State is in memory, so restarting the backend starts over with no catalog.
 
 ## How the spec maps to the API
 
@@ -45,11 +73,12 @@ backend/
     domain/      models, errors, packer, sinks, service (pure Python)
     api/         Pydantic schemas, routes, error mapping
     main.py      app wiring
-  tests/
+  tests/         packer, service, property (hypothesis), and API tests
   samples/       catalog, restock, and order JSON from the spec
 frontend/
   src/           App, api.ts (types + fetch), usePolling.ts, components/
-DESIGN.md        problem, design, tradeoffs, build plan
+docs/            dashboard screenshot
+DESIGN.md        problem, design, tradeoffs, build plan, open questions
 CLAUDE.md        instructions for AI coding agents working in this repo
 Makefile
 ```
